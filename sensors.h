@@ -3,22 +3,27 @@
 
 #include <Arduino.h>
 
-template <byte s0, byte s1, byte s2, byte s3, byte s4, byte s5 >
+#define SENSOR_THRESHOLD 600
+#define NO_LINE_THRESHOLD 50
 
+//template <byte s0, byte s1, byte s2, byte s3, byte s4, byte s5 >
 class Sensors{
     public:
 
+        
         /*
         * configure
         * configure and init sensors
         */ 
-        void configure(){
-            pinMode(s0,INPUT);
-            pinMode(s1,INPUT);
+        void configure(byte * sensor,byte size){
+            for(int i =0;i< size;i++)
+                pinMode(sensor[i],INPUT);
+            /*pinMode(s1,INPUT);
             pinMode(s2,INPUT);
             pinMode(s3,INPUT);
             pinMode(s4,INPUT);
             pinMode(s5,INPUT);
+            */
         };
 
         /*
@@ -26,15 +31,20 @@ class Sensors{
         * update Error value
         * return calculated error 
         */
-        int updateError(){
+        int updateError(byte * sensor,byte size){
             int iRead = 0;
             int iActive = 0;
             
-            readValues();
+            readLine(sensor,size);
+            delay(1);
             printSensors();
-            
-            for(int i=0; i<=5; i++) {        
-              if(analogRead(sensor_value[i]) < min_threshold) {
+
+            if(Sensors::not_above_line(sensor_value[0]) && Sensors::above_line(sensor_value[5]))
+                  isTurnRequired = true;
+            else if(Sensors::not_above_line(sensor_value[5]) && Sensors::above_line(sensor_value[0]))
+                  isTurnRequired = true;
+            for(int i=0; i<6; i++) {        
+              if(Sensors::not_above_line(sensor_value[i])) {
                 iRead += (i+1)*1000;
                 iActive++;
               }
@@ -69,32 +79,41 @@ class Sensors{
             Serial.print("\t");
             Serial.print(sensor_value[3]);
             Serial.print("\t");
-            Serial.println(sensor_value[4]);
+            Serial.print(sensor_value[4]);
             Serial.print("\t");
             Serial.println(sensor_value[5]);
         };
         
-        void readValues(){
+        void readLine(byte * sensor,byte size){
+          for(int i =0;i< size;i++)
+              sensor_value[i] = analogRead(sensor[i]);
+          /*
             sensor_value[0] = analogRead(s0);
             sensor_value[1] = analogRead(s1);
             sensor_value[2] = analogRead(s2);
             sensor_value[3] = analogRead(s3);
             sensor_value[4] = analogRead(s4);
-            sensor_value[4] = analogRead(s5);
+            sensor_value[5] = analogRead(s5);
+            */
         };    
-        
-        byte sensor_value[6] = {0,0,0,0,0};
-        
+
+        void switchSensors(){
+          if(limitMin == SENSOR_THRESHOLD)
+              limitMin = NO_LINE_THRESHOLD;
+          else if(limitMax == NO_LINE_THRESHOLD)
+              limitMin = SENSOR_THRESHOLD;
+        };
+
+        byte sensor_value[6] = {0,0,0,0,0,0};
         volatile int error;
-        
-        int8_t max_threshold = 800;
-        int8_t min_threshold = 120;
-        
-        volatile bool turn;
-        
+        volatile bool isTurnRequired;
         int stable = map(3500,0,6000,0,1023); 
         int iLastRead;
 
+        int limitMin = SENSOR_THRESHOLD, limitMax = NO_LINE_THRESHOLD;
+        
+        static bool above_line(byte sensor) { return sensor > SENSOR_THRESHOLD; };
+        static bool not_above_line(byte  sensor) { return sensor > NO_LINE_THRESHOLD; };          
 };
 
 #endif
