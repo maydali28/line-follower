@@ -21,6 +21,7 @@ bool isInProcess;
 
 byte state = 'S';
 byte last_state = 'S';
+byte detect = 'N';
 void setup() {
   Serial.begin(9600);
   // put your setup code here, to run once:
@@ -35,20 +36,30 @@ void loop() {
 
   switch(state){
     case 'S':
-      if(state == 'G') state = 'F';
+      Serial.println("stopped");
+      if(detect == 'G') {
+        Serial.println("Detect Object");
+        state = 'F';
+        detect = 'N';
+      }
       if(last_state == 'S') isInProcess = false;
       break;
-    case 'F': 
+    case 'F':
+        Serial.println("Forward"); 
         isInProcess = false;
-        if(!sensors.isTurnRequired)
-            motors.drive((int)PID_value);
-        if(state == 'S'){
-            motors.stopMoving();
-            invalide();
+        if(detect == 'G'){
+          Serial.println("Detect Object");
+        }
+        else {
+          if(state == 'S'){
+              motors.stopMoving();
+              invalide();
+          }
         }
         last_state = 'F';
       break;
     case 'R':
+      Serial.println("Right");
       if(last_state == 'F'){
           isInProcess = true;
           turn('R');
@@ -58,6 +69,7 @@ void loop() {
       last_state = 'R';
       break;
     case 'L':
+    Serial.println("Left");
       if(last_state == 'F'){
           isInProcess = true;
           turn('F');
@@ -67,6 +79,7 @@ void loop() {
       last_state = 'L';
       break;
     case 'W':
+    Serial.println("Switch");
       sensors.switchSensors();
       isInProcess = false;
       break;
@@ -74,6 +87,7 @@ void loop() {
       break;     
   }
 
+  
   if(isInProcess){
     return;
   }
@@ -88,12 +102,11 @@ void loop() {
   Serial.println((int)PID_value);
   
   if(sensors.isTurnRequired){
-      intersection();
+      Serial.println("detect intersection");
+      state = intersection();
       isInProcess = true;  
-  }
-  else{
-      
-  }
+  }else
+      motors.drive((int)PID_value);
   delay(1000);
 }
 
@@ -101,6 +114,7 @@ void invalide(){
   sensors.error = 0;
   PID_value = 0;
   I = 0;
+  state = 'S';
 }
 
 void calculate_PID(int8_t error){
@@ -117,7 +131,7 @@ void calculate_PID(int8_t error){
 
     previous_error = error;
 }
-    
+    unsigned long millis_start;
 byte intersection(){
     
     bool found_left = 0;
@@ -130,37 +144,40 @@ byte intersection(){
     sensors.readLine(s,6);
     
     // Check for left and right exits.
-    if (Sensors::above_line(sensors.sensor_value[0]))
+    if (sensors.above_line(sensors.sensor_value[0]))
     found_left = 1;
-    if (Sensors::above_line(sensors.sensor_value[5]))
+    if (sensors.above_line(sensors.sensor_value[5]))
     found_right = 1;
+
+    millis_start = millis();
     
     while(!changed || ! timeout){
         motors.drive(motors.speedConst / 2);
         sensors.readLine(s,6);
-        if(found_left && Sensors::not_above_line(sensors.sensor_value[0])){
+        if(found_left && sensors.not_above_line(sensors.sensor_value[0])){
           found_left = 0;
           changed = true; 
         }
-        if(found_right && Sensors::not_above_line(sensors.sensor_value[5])){
+        if(found_right && sensors.not_above_line(sensors.sensor_value[5])){
           found_right = 0;
           changed = true; 
         }
+        if(50 > (millis()-millis_start)) timeout = true;
         delay(1);
     }
     
-    if (Sensors::above_line(sensors.sensor_value[0]))
+    if (sensors.above_line(sensors.sensor_value[0]))
     found_left = 1;
-    if (Sensors::above_line(sensors.sensor_value[5]))
+    if (sensors.above_line(sensors.sensor_value[5]))
     found_right = 1;    
     
-    if (timeout && (Sensors::above_line(sensors.sensor_value[1]) || Sensors::above_line(sensors.sensor_value[2]) ||
-    Sensors::above_line(sensors.sensor_value[3]) || Sensors::above_line(sensors.sensor_value[4]))){
+    if (timeout && (sensors.above_line(sensors.sensor_value[1]) || sensors.above_line(sensors.sensor_value[2]) ||
+    sensors.above_line(sensors.sensor_value[3]) || sensors.above_line(sensors.sensor_value[4]))){
       found_straight = 1;
       timeout = false;
     }
     
-    byte intersectionType = 0;
+    byte intersectionType = 'F';
     
     if (!found_left && !found_right && !found_straight) {
     // deadend
@@ -201,6 +218,41 @@ byte intersection(){
 }
 
 void turn(byte dir){
-  
+  unsigned short count = 0;
+  unsigned short last_status = 0;
+  switch(dir){
+    case 'L':
+      motors.turn(1);  
+      delay(1);
+      /* complete turn */
+      while(count < 2)
+      {
+        sensors.readLine(s,6);
+        count += sensors.above_line(sensors.sensor_value[0]) ^ last_status;
+        last_status = sensors.above_line(sensors.sensor_value[0]);
+      }
+      motors.turn(1);
+      invalide();
+      state = 'F';
+      delay(1);
+      motors.stopMoving();
+    break;
+    case 'R':
+      motors.turn(-1);
+      delay(1);
+      /* complete turn */
+      while(count < 2)
+      {
+        sensors.readLine(s,6);
+        count += sensors.above_line(sensors.sensor_value[5]) ^ last_status;
+        last_status = sensors.above_line(sensors.sensor_value[5]);
+      }
+      
+      motors.turn(-1);
+      invalide();
+      state = 'F';
+      delay(1);
+      motors.stopMoving();
+      break;
+  }
 }
-

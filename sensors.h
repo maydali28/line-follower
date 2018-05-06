@@ -39,12 +39,12 @@ class Sensors{
             delay(1);
             printSensors();
 
-            if(Sensors::not_above_line(sensor_value[0]) && Sensors::above_line(sensor_value[5]))
+            if(not_above_line(sensor_value[0]) && above_line(sensor_value[5]))
                   isTurnRequired = true;
-            else if(Sensors::not_above_line(sensor_value[5]) && Sensors::above_line(sensor_value[0]))
+            else if(not_above_line(sensor_value[5]) && above_line(sensor_value[0]))
                   isTurnRequired = true;
             for(int i=0; i<6; i++) {        
-              if(Sensors::not_above_line(sensor_value[i])) {
+              if(not_above_line(sensor_value[i])) {
                 iRead += (i+1)*1000;
                 iActive++;
               }
@@ -98,22 +98,30 @@ class Sensors{
         };    
 
         void switchSensors(){
-          if(limitMin == SENSOR_THRESHOLD)
-              limitMin = NO_LINE_THRESHOLD;
-          else if(limitMax == NO_LINE_THRESHOLD)
+          if(limitMax == SENSOR_THRESHOLD)
+              limitMax = NO_LINE_THRESHOLD;
+          else 
+              limitMax = SENSOR_THRESHOLD;
+          if(limitMin == NO_LINE_THRESHOLD)
               limitMin = SENSOR_THRESHOLD;
+          else 
+              limitMin = NO_LINE_THRESHOLD;
         };
 
         byte sensor_value[6] = {0,0,0,0,0,0};
+        
         volatile int error;
         volatile bool isTurnRequired;
         int stable = map(3500,0,6000,0,1023); 
         int iLastRead;
-
-        int limitMin = SENSOR_THRESHOLD, limitMax = NO_LINE_THRESHOLD;
+/*
+        static int limitMax = SENSOR_THRESHOLD, limitMin = NO_LINE_THRESHOLD;
+  */      
+        int limitMax = SENSOR_THRESHOLD;
+        int limitMin = NO_LINE_THRESHOLD;
         
-        static bool above_line(byte sensor) { return sensor > SENSOR_THRESHOLD; };
-        static bool not_above_line(byte  sensor) { return sensor > NO_LINE_THRESHOLD; };          
+        bool above_line(byte sensor) { return (int)sensor > limitMax; };
+        bool not_above_line(byte  sensor) { return (int)sensor > limitMin; };          
 };
 
 #endif
